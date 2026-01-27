@@ -1,0 +1,22 @@
+# ==============================================================================
+# Pinned dependencies for Vercel Python deployment
+# Optimized for Skyfield ephemeris calculations
+# ==============================================================================
+
+# Core Framework
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic-settings==2.5.2
+pydantic==2.9.2
+
+# HTTP Client (for FreeAstrologyAPI proxy mode)
+httpx==0.27.2
+
+# Astronomy Calculations
+skyfield==1.49
+
+# Vercel Python runtime uses gunicorn-style workers
+mangum==0.18.0
+
+# Note: de421.bsp ephemeris file is included in the repo
+# It's ~16MB and required for planetary calculations

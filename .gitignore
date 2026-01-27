@@ -1,0 +1,32 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Environment files (keep .env.example)
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Egg files
+*.egg-info/
+*.egg
+
+# Distribution
+dist/
+build/
+
+# Pytest
+.pytest_cache/
+
+# Vercel
+.vercel/

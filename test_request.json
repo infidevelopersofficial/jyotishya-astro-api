@@ -1,0 +1,13 @@
+{
+  "year": 2000,
+  "month": 1,
+  "date": 15,
+  "hours": 10,
+  "minutes": 30,
+  "seconds": 0,
+  "latitude": 28.6139,
+  "longitude": 77.209,
+  "timezone": 5.5,
+  "observation_point": "topocentric",
+  "ayanamsha": "lahiri"
+}
