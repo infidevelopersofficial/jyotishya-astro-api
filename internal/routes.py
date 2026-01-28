@@ -149,36 +149,59 @@ async def get_birth_chart(request: AstrologyRequest):
         )
 
 
+class ChartSvgRequest(AstrologyRequest):
+    """Extended request with chart styling options"""
+    chart_style: str = Field("north_indian", pattern="^(north_indian|south_indian)$")
+    theme: str = Field("light", pattern="^(light|dark)$")
+    size: str = Field("medium", pattern="^(small|medium|large)$")
+
+
 @router.post("/horoscope-chart-svg-code")
-async def get_chart_svg(request: AstrologyRequest):
+async def get_chart_svg(request: ChartSvgRequest):
     """
     Generate SVG chart visualization
 
     Matches FreeAstrologyAPI endpoint: POST /horoscope-chart-svg-code
-
-    For MVP, returns a placeholder response. Full SVG generation
-    can be implemented later or handled client-side.
+    
+    Supports:
+    - chart_style: north_indian (diamond) | south_indian (square)
+    - theme: light | dark
+    - size: small (300px) | medium (400px) | large (600px)
     """
     try:
-        # Calculate basic chart data
+        from .chart_svg import generate_chart_svg, ChartStyle, ChartTheme, ChartSize
+        
+        # Calculate birth chart data first
         birth_chart = await get_birth_chart(request)
-
-        # TODO: Generate actual SVG visualization
-        # For now, return placeholder
-        svg_placeholder = f"""
-        <svg width="400" height="400" xmlns="http://www.w3.org/2000/svg">
-            <text x="200" y="200" text-anchor="middle">
-                Chart visualization coming soon
-            </text>
-            <text x="200" y="230" text-anchor="middle">
-                Ascendant: {birth_chart.ascendant:.2f}°
-            </text>
-        </svg>
-        """
-
+        
+        # Convert string params to enums
+        style = ChartStyle.NORTH_INDIAN if request.chart_style == "north_indian" else ChartStyle.SOUTH_INDIAN
+        theme = ChartTheme.LIGHT if request.theme == "light" else ChartTheme.DARK
+        size_map = {"small": ChartSize.SMALL, "medium": ChartSize.MEDIUM, "large": ChartSize.LARGE}
+        size = size_map.get(request.size, ChartSize.MEDIUM)
+        
+        # Convert planet models back to dicts for SVG generator
+        planets = [p.model_dump() for p in birth_chart.planets]
+        houses = [h.model_dump() for h in birth_chart.houses]
+        
+        # Generate SVG
+        svg_code = generate_chart_svg(
+            planets=planets,
+            houses=houses,
+            ascendant=birth_chart.ascendant,
+            style=style,
+            theme=theme,
+            size=size,
+        )
+        
+        logger.info(f"Generated {request.chart_style} chart SVG ({request.size}, {request.theme})")
+        
         return {
             "statusCode": 200,
-            "output": svg_placeholder.strip()
+            "output": svg_code,
+            "chart_style": request.chart_style,
+            "theme": request.theme,
+            "size": request.size
         }
 
     except Exception as e:
