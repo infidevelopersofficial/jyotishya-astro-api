@@ -142,11 +142,22 @@ def generate_daily_horoscope(
         if planet_sign in SIGN_INDEX:
             planet_sign_idx = SIGN_INDEX[planet_sign]
             aspect = get_aspect_to_sign(planet_sign_idx, natal_sign_idx)
+            
+            # Convert numpy types to native Python types
+            norm_degree = planet.get("normDegree", 0)
+            is_retro = planet.get("isRetro", False)
+            
+            # Handle numpy types
+            if hasattr(norm_degree, 'item'):
+                norm_degree = norm_degree.item()
+            if hasattr(is_retro, 'item'):
+                is_retro = is_retro.item()
+            
             transit_aspects[planet["name"]] = {
                 "sign": planet.get("sign"),
-                "degree": round(planet.get("normDegree", 0), 2),
+                "degree": round(float(norm_degree), 2),
                 "aspect": aspect.value,
-                "is_retro": planet.get("isRetro", False),
+                "is_retro": bool(is_retro),
             }
     
     # Generate guidance based on transits
