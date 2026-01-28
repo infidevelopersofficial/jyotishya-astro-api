@@ -25,10 +25,26 @@ def _ensure_ephemeris():
         return
 
     try:
-        from skyfield.api import load
+        import os
+        from skyfield.api import load, Loader
 
-        # Load ephemeris (downloads if not cached)
-        _eph = load('de421.bsp')
+        # Get the directory containing this module (internal/)
+        module_dir = os.path.dirname(os.path.abspath(__file__))
+        # Project root is one level up from internal/
+        project_root = os.path.dirname(module_dir)
+        
+        # Create a loader that looks in the project root for ephemeris files
+        loader = Loader(project_root)
+        
+        # Load ephemeris from project root (where de421.bsp is)
+        ephemeris_path = os.path.join(project_root, 'de421.bsp')
+        
+        if os.path.exists(ephemeris_path):
+            _eph = loader('de421.bsp')
+        else:
+            # Fallback: try to download (not ideal for serverless)
+            _eph = load('de421.bsp')
+            
         _ts = load.timescale()
         _earth = _eph['earth']
 
