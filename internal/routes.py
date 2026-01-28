@@ -222,10 +222,132 @@ async def health_check():
     }
 
 
+# ==============================================================================
+# DAILY HOROSCOPE ENDPOINTS
+# ==============================================================================
+
+class DailyHoroscopeRequest(BaseModel):
+    """Request for single sign daily horoscope"""
+    sign: str = Field(..., pattern="^(aries|taurus|gemini|cancer|leo|virgo|libra|scorpio|sagittarius|capricorn|aquarius|pisces)$")
+    date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")  # YYYY-MM-DD format
+    timezone: str = Field("Asia/Kolkata")
+
+
+class BatchHoroscopeRequest(BaseModel):
+    """Request for all 12 signs daily horoscope"""
+    date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    timezone: str = Field("Asia/Kolkata")
+
+
+@router.post("/horoscope/daily")
+async def get_daily_horoscope(request: DailyHoroscopeRequest):
+    """
+    Get daily horoscope for a single zodiac sign.
+    
+    Args:
+        sign: Zodiac sign (lowercase)
+        date: Date in YYYY-MM-DD format (default: today)
+        timezone: Timezone name (default: Asia/Kolkata)
+    
+    Returns:
+        Horoscope with transits, guidance, and ratings
+    """
+    try:
+        from .horoscope import generate_daily_horoscope
+        from datetime import datetime, timezone as tz
+        from zoneinfo import ZoneInfo
+        
+        # Parse date
+        if request.date:
+            try:
+                target_date = datetime.strptime(request.date, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+        else:
+            # Use today in the requested timezone
+            try:
+                zone = ZoneInfo(request.timezone)
+                target_date = datetime.now(zone)
+            except Exception:
+                target_date = datetime.now(tz.utc)
+        
+        # Generate horoscope
+        horoscope = generate_daily_horoscope(
+            sign=request.sign,
+            date=target_date,
+        )
+        
+        logger.info(f"Generated daily horoscope for {request.sign}")
+        
+        return horoscope
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error generating daily horoscope: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate daily horoscope: {str(e)}"
+        )
+
+
+@router.post("/horoscope/daily/batch")
+async def get_batch_horoscopes(request: BatchHoroscopeRequest):
+    """
+    Get daily horoscopes for all 12 zodiac signs.
+    
+    Efficient: calculates planetary transits once and generates
+    all 12 horoscopes from the same data.
+    
+    Args:
+        date: Date in YYYY-MM-DD format (default: today)
+        timezone: Timezone name (default: Asia/Kolkata)
+    
+    Returns:
+        Dictionary with all 12 sign horoscopes
+    """
+    try:
+        from .horoscope import generate_batch_horoscopes
+        from datetime import datetime, timezone as tz
+        from zoneinfo import ZoneInfo
+        
+        # Parse date
+        if request.date:
+            try:
+                target_date = datetime.strptime(request.date, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+        else:
+            try:
+                zone = ZoneInfo(request.timezone)
+                target_date = datetime.now(zone)
+            except Exception:
+                target_date = datetime.now(tz.utc)
+        
+        # Generate all horoscopes
+        horoscopes = generate_batch_horoscopes(date=target_date)
+        
+        logger.info(f"Generated batch horoscopes for {target_date.strftime('%Y-%m-%d')}")
+        
+        return {
+            "date": target_date.strftime("%Y-%m-%d"),
+            "backend": "internal",
+            "horoscopes": horoscopes,
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating batch horoscopes: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate batch horoscopes: {str(e)}"
+        )
+
+
 # Additional endpoints can be added here to match FreeAstrologyAPI:
 # - POST /panchang - Calculate Panchang
 # - POST /match-making - Compatibility
 # - POST /vimsottari-maha-dasa - Dasa periods
 # - POST /planets-d9, /planets-d10, etc. - Divisional charts
+
 
 # For MVP, we'll implement these as needed
