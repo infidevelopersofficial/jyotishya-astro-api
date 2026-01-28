@@ -6,8 +6,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class AstrologyBackend(str, Enum):
   """Astrology calculation backend selection"""
-  INTERNAL = "internal"  # Use internal calculation engine
-  FREEASTROLOGY = "freeastrology"  # Use FreeAstrologyAPI.com
+  INTERNAL = "internal"  # Use internal calculation engine only
+  FREEASTROLOGY = "freeastrology"  # Use FreeAstrologyAPI.com only
+  HYBRID = "hybrid"  # Internal first, fallback to external if internal fails
   MOCK = "mock"  # Use mock data
 
 

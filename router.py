@@ -36,7 +36,7 @@ async def startup_event():
     logger.info(f"Backend: {settings.astrology_backend.value}")
     logger.info("=" * 60)
 
-    if settings.astrology_backend == AstrologyBackend.INTERNAL:
+    if settings.astrology_backend in (AstrologyBackend.INTERNAL, AstrologyBackend.HYBRID):
         logger.info("✅ Using INTERNAL calculation engine (Skyfield)")
         try:
             # Pre-load ephemeris to catch any issues early
@@ -45,31 +45,36 @@ async def startup_event():
             logger.info("✅ Ephemeris data loaded successfully")
         except Exception as e:
             logger.error(f"⚠️  Failed to load ephemeris: {e}")
-            logger.error("   API will still start but may fail on first request")
+            if settings.astrology_backend == AstrologyBackend.HYBRID:
+                logger.warning("   HYBRID mode: Will fallback to external API")
+            else:
+                logger.error("   API will still start but may fail on first request")
 
-    elif settings.astrology_backend == AstrologyBackend.FREEASTROLOGY:
-        logger.info("✅ Using FreeAstrologyAPI.com")
+    if settings.astrology_backend in (AstrologyBackend.FREEASTROLOGY, AstrologyBackend.HYBRID):
+        logger.info("✅ External API configured: FreeAstrologyAPI.com")
         if not settings.free_api_key:
-            logger.warning("⚠️  FREE_API_KEY not set. Requests will fail.")
+            logger.warning("⚠️  FREE_API_KEY not set. External API calls may fail.")
         else:
             logger.info(f"   API Key configured: {settings.free_api_key[:10]}...")
 
-    else:
+    if settings.astrology_backend == AstrologyBackend.MOCK:
         logger.info("✅ Using MOCK data provider")
 
 
 # Include routes based on backend selection
-if settings.astrology_backend == AstrologyBackend.INTERNAL:
-    # Use internal calculation engine
+if settings.astrology_backend in (AstrologyBackend.INTERNAL, AstrologyBackend.HYBRID):
+    # Use internal calculation engine (with optional fallback for HYBRID)
     from internal.routes import router as internal_router
     app.include_router(internal_router, tags=["Internal Astrology Engine"])
 
     @app.get("/")
     async def root():
+        mode = "hybrid" if settings.astrology_backend == AstrologyBackend.HYBRID else "internal"
         return {
             "service": "Jyotishya Astrology API",
-            "backend": "internal",
+            "backend": mode,
             "version": "1.0.0",
+            "fallback_enabled": settings.astrology_backend == AstrologyBackend.HYBRID,
             "endpoints": {
                 "birth_chart": "POST /planets",
                 "chart_svg": "POST /horoscope-chart-svg-code",
