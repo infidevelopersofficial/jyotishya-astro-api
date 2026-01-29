@@ -7,7 +7,7 @@ drop-in replacement without frontend changes.
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict
 import logging
 
@@ -343,11 +343,115 @@ async def get_batch_horoscopes(request: BatchHoroscopeRequest):
         )
 
 
-# Additional endpoints can be added here to match FreeAstrologyAPI:
-# - POST /panchang - Calculate Panchang
+# ==============================================================================
+# PANCHANG ENDPOINTS
+# ==============================================================================
+
+class PanchangRequest(BaseModel):
+    """Request for Panchang calculation"""
+    date: Optional[str] = Field(None, pattern=r"^\d{4}-\d{2}-\d{2}$")  # YYYY-MM-DD
+    latitude: float = Field(28.6139, ge=-90, le=90)
+    longitude: float = Field(77.209, ge=-180, le=180)
+    timezone: float = Field(5.5, ge=-12, le=14)
+    ayanamsha: str = Field("lahiri", pattern="^(lahiri|raman|krishnamurti)$")
+
+
+@router.get("/panchang/today")
+async def get_today_panchang(
+    latitude: float = 28.6139,
+    longitude: float = 77.209,
+    timezone: float = 5.5,
+    locale: str = "en"
+):
+    """
+    Get Panchang for today.
+    
+    Returns Tithi, Nakshatra, Yoga, Karana, Sunrise, Sunset, Vara, Ritu.
+    """
+    try:
+        from .panchang import calculate_panchang
+        from datetime import datetime, timezone as tz
+        from zoneinfo import ZoneInfo
+        
+        # Get today in the specified timezone
+        try:
+            tz_offset = timedelta(hours=timezone)
+            today = datetime.now(tz.utc) + tz_offset
+        except Exception:
+            today = datetime.now(tz.utc)
+        
+        panchang = calculate_panchang(
+            date=today,
+            latitude=latitude,
+            longitude=longitude,
+            timezone_hours=timezone,
+        )
+        
+        logger.info(f"Generated Panchang for {panchang['date']}")
+        
+        return panchang
+        
+    except Exception as e:
+        logger.error(f"Error calculating today's panchang: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to calculate Panchang: {str(e)}"
+        )
+
+
+@router.post("/panchang")
+async def get_panchang(request: PanchangRequest):
+    """
+    Calculate Panchang for a specific date.
+    
+    Args:
+        date: Date in YYYY-MM-DD format (default: today)
+        latitude: Location latitude (default: Delhi)
+        longitude: Location longitude (default: Delhi)
+        timezone: Timezone offset in hours (default: IST +5.5)
+        ayanamsha: Ayanamsha system (default: lahiri)
+    
+    Returns:
+        Complete Panchang with Tithi, Nakshatra, Yoga, Karana, etc.
+    """
+    try:
+        from .panchang import calculate_panchang
+        from datetime import datetime, timezone as tz
+        
+        # Parse date or use today
+        if request.date:
+            try:
+                target_date = datetime.strptime(request.date, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+        else:
+            tz_offset = timedelta(hours=request.timezone)
+            target_date = datetime.now(tz.utc) + tz_offset
+        
+        panchang = calculate_panchang(
+            date=target_date,
+            latitude=request.latitude,
+            longitude=request.longitude,
+            timezone_hours=request.timezone,
+            ayanamsha=request.ayanamsha,
+        )
+        
+        logger.info(f"Generated Panchang for {panchang['date']}")
+        
+        return panchang
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error calculating panchang: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to calculate Panchang: {str(e)}"
+        )
+
+
+# Additional endpoints to implement:
 # - POST /match-making - Compatibility
 # - POST /vimsottari-maha-dasa - Dasa periods
 # - POST /planets-d9, /planets-d10, etc. - Divisional charts
 
-
-# For MVP, we'll implement these as needed
