@@ -74,9 +74,21 @@ def calculate_panchang(
         Dictionary with all Panchang elements
     """
     try:
-        from .planetary import load_ephemeris, get_ayanamsha_value
+        # Import from planetary module - use existing internal functions
+        from .planetary import (
+            _ensure_ephemeris, 
+            _eph, _ts,
+            calculate_lahiri_ayanamsha
+        )
+        from .houses import datetime_to_julian_date
         
-        ts, eph = load_ephemeris()
+        # Ensure ephemeris is loaded
+        _ensure_ephemeris()
+        
+        # Access module-level globals after ensuring they're loaded
+        from . import planetary
+        ts = planetary._ts
+        eph = planetary._eph
         
         # Use noon for calculations
         noon_dt = datetime(
@@ -99,8 +111,10 @@ def calculate_panchang(
         sun_lon = sun_ecliptic[1].degrees
         moon_lon = moon_ecliptic[1].degrees
         
-        # Apply ayanamsha for sidereal positions
-        ayanamsha_value = get_ayanamsha_value(t, ayanamsha)
+        # Calculate ayanamsha using Lahiri
+        jd = datetime_to_julian_date(noon_dt)
+        ayanamsha_value = calculate_lahiri_ayanamsha(jd)
+        
         sun_sidereal = (sun_lon - ayanamsha_value) % 360
         moon_sidereal = (moon_lon - ayanamsha_value) % 360
         
