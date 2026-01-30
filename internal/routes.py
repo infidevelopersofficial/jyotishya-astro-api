@@ -852,7 +852,8 @@ class YogasFromBirthRequest(BaseModel):
 async def detect_yogas_from_birth(request: YogasFromBirthRequest):
     """Detect yogas from birth details."""
     try:
-        from .planetary import calculate_planet_positions, calculate_ascendant
+        from .planetary import calculate_planet_positions
+        from .houses import calculate_ascendant
         from .yogas import detect_yogas
         from datetime import datetime, timedelta, timezone as tz
         
@@ -959,7 +960,8 @@ class DivisionalFromBirthRequest(BaseModel):
 async def get_divisional_from_birth(request: DivisionalFromBirthRequest):
     """Calculate divisional charts from birth details."""
     try:
-        from .planetary import calculate_planet_positions, calculate_ascendant
+        from .planetary import calculate_planet_positions
+        from .houses import calculate_ascendant
         from .divisional import calculate_divisional_charts, get_navamsa_chart, get_dasamsa_chart
         from datetime import datetime, timedelta, timezone as tz
         
