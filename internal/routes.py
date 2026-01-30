@@ -852,7 +852,8 @@ class YogasFromBirthRequest(BaseModel):
 async def detect_yogas_from_birth(request: YogasFromBirthRequest):
     """Detect yogas from birth details."""
     try:
-        from .planetary import calculate_planet_positions, calculate_lahiri_ayanamsha, _ensure_ephemeris, _ts
+        from . import planetary
+        from .planetary import calculate_planet_positions, calculate_lahiri_ayanamsha
         from .houses import calculate_ascendant
         from .yogas import detect_yogas
         from datetime import datetime, timedelta, timezone as tz
@@ -870,16 +871,15 @@ async def detect_yogas_from_birth(request: YogasFromBirthRequest):
             tzinfo=birth_tz
         )
         
-        # Calculate planets
+        # Calculate planets (this also loads ephemeris)
         planets_list = calculate_planet_positions(
             dt=birth_dt,
             latitude=request.latitude,
             longitude=request.longitude,
         )
         
-        # Calculate ayanamsha
-        _ensure_ephemeris()
-        t = _ts.from_datetime(birth_dt)
+        # Access _ts from module after ephemeris is loaded
+        t = planetary._ts.from_datetime(birth_dt)
         ayanamsha_value = calculate_lahiri_ayanamsha(t.tt)
         
         # Calculate ascendant (returns float)
@@ -965,7 +965,8 @@ class DivisionalFromBirthRequest(BaseModel):
 async def get_divisional_from_birth(request: DivisionalFromBirthRequest):
     """Calculate divisional charts from birth details."""
     try:
-        from .planetary import calculate_planet_positions, calculate_lahiri_ayanamsha, _ensure_ephemeris, _ts
+        from . import planetary
+        from .planetary import calculate_planet_positions, calculate_lahiri_ayanamsha
         from .houses import calculate_ascendant
         from .divisional import calculate_divisional_charts, get_navamsa_chart, get_dasamsa_chart
         from datetime import datetime, timedelta, timezone as tz
@@ -983,16 +984,15 @@ async def get_divisional_from_birth(request: DivisionalFromBirthRequest):
             tzinfo=birth_tz
         )
         
-        # Calculate planets
+        # Calculate planets (this also loads ephemeris)
         planets_list = calculate_planet_positions(
             dt=birth_dt,
             latitude=request.latitude,
             longitude=request.longitude,
         )
         
-        # Calculate ayanamsha
-        _ensure_ephemeris()
-        t = _ts.from_datetime(birth_dt)
+        # Access _ts from module after ephemeris is loaded
+        t = planetary._ts.from_datetime(birth_dt)
         ayanamsha_value = calculate_lahiri_ayanamsha(t.tt)
         
         # Calculate ascendant (returns float)
