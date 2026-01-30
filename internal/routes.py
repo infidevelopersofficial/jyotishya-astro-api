@@ -450,8 +450,102 @@ async def get_panchang(request: PanchangRequest):
         )
 
 
-# Additional endpoints to implement:
-# - POST /match-making - Compatibility
-# - POST /vimsottari-maha-dasa - Dasa periods
-# - POST /planets-d9, /planets-d10, etc. - Divisional charts
+# ==============================================================================
+# VIMSOTTARI DASHA ENDPOINTS
+# ==============================================================================
 
+class DashaRequest(BaseModel):
+    """Request for Vimsottari Dasha calculation"""
+    year: int = Field(..., ge=1800, le=2200)
+    month: int = Field(..., ge=1, le=12)
+    date: int = Field(..., ge=1, le=31)
+    hours: int = Field(..., ge=0, le=23)
+    minutes: int = Field(..., ge=0, le=59)
+    seconds: int = Field(0, ge=0, le=59)
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    timezone: float = Field(..., ge=-12, le=14)
+    ayanamsha: str = Field("lahiri", pattern="^(lahiri|raman|krishnamurti)$")
+    years_to_calculate: int = Field(100, ge=10, le=150)
+
+
+@router.post("/vimsottari-dasha")
+async def calculate_dasha(request: DashaRequest):
+    """
+    Calculate Vimsottari Dasha periods from birth details.
+    
+    Returns:
+        - birth_nakshatra: Moon's nakshatra at birth
+        - current_mahadasha: Currently running major period
+        - current_antardasha: Currently running sub-period
+        - mahadashas: List of all Mahadasha periods with Antardashas
+    """
+    try:
+        from .dasha import get_dasha_from_birth_chart
+        
+        result = get_dasha_from_birth_chart(
+            year=request.year,
+            month=request.month,
+            day=request.date,
+            hours=request.hours,
+            minutes=request.minutes,
+            seconds=request.seconds,
+            latitude=request.latitude,
+            longitude=request.longitude,
+            timezone=request.timezone,
+            ayanamsha=request.ayanamsha,
+            years_to_calculate=request.years_to_calculate,
+        )
+        
+        logger.info(f"Generated Vimsottari Dasha for {request.year}-{request.month}-{request.date}")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error calculating Vimsottari Dasha: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to calculate Vimsottari Dasha: {str(e)}"
+        )
+
+
+class DashaFromMoonRequest(BaseModel):
+    """Request for Dasha from Moon longitude (already calculated)"""
+    moon_longitude: float = Field(..., ge=0, lt=360, description="Moon's sidereal longitude")
+    birth_date: str = Field(..., pattern=r"^\d{4}-\d{2}-\d{2}$", description="Birth date YYYY-MM-DD")
+    years_to_calculate: int = Field(100, ge=10, le=150)
+
+
+@router.post("/vimsottari-dasha/from-moon")
+async def calculate_dasha_from_moon(request: DashaFromMoonRequest):
+    """
+    Calculate Vimsottari Dasha from pre-calculated Moon longitude.
+    
+    Useful when you already have the birth chart and just need Dasha periods.
+    """
+    try:
+        from .dasha import calculate_vimsottari_dasha
+        
+        birth_dt = datetime.strptime(request.birth_date, "%Y-%m-%d")
+        
+        result = calculate_vimsottari_dasha(
+            moon_longitude=request.moon_longitude,
+            birth_date=birth_dt,
+            years_to_calculate=request.years_to_calculate,
+        )
+        
+        logger.info(f"Generated Vimsottari Dasha from Moon longitude {request.moon_longitude}")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error calculating Dasha from Moon: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to calculate Dasha: {str(e)}"
+        )
+
+
+# Additional endpoints to implement:
+# - POST /match-making - Ashtakoot compatibility
+# - POST /planetary-strength - Shadbala calculations
