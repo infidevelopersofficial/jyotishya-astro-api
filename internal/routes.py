@@ -659,6 +659,138 @@ async def calculate_match_from_birth(request: MatchingFromBirthRequest):
         )
 
 
+# ==============================================================================
+# TRANSIT PREDICTIONS ENDPOINTS
+# ==============================================================================
+
+class TransitRequest(BaseModel):
+    """Request for transit predictions"""
+    natal_planets: Dict[str, float] = Field(
+        ..., 
+        description="Dict of planet name to sidereal longitude (0-360)"
+    )
+
+
+@router.post("/transits")
+async def get_transits(request: TransitRequest):
+    """
+    Calculate current transit effects on natal chart.
+    
+    Analyzes aspects between current planetary positions and natal planets.
+    Returns active transits with interpretations and significance levels.
+    """
+    try:
+        from .transits import calculate_transit_effects
+        
+        result = calculate_transit_effects(
+            natal_planets=request.natal_planets
+        )
+        
+        logger.info(f"Generated transit predictions: {result['summary']['total_aspects']} aspects found")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error calculating transits: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to calculate transits: {str(e)}"
+        )
+
+
+@router.get("/transits/current")
+async def get_current_positions():
+    """
+    Get current planetary positions for transits.
+    
+    Returns real-time sidereal positions of all planets.
+    """
+    try:
+        from .transits import get_current_transits
+        
+        positions = get_current_transits()
+        
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "positions": positions,
+            "ayanamsha": "lahiri",
+            "backend": "internal",
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting current positions: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get positions: {str(e)}"
+        )
+
+
+class TransitFromBirthRequest(BaseModel):
+    """Request for transit predictions from birth details"""
+    year: int = Field(..., ge=1800, le=2200)
+    month: int = Field(..., ge=1, le=12)
+    date: int = Field(..., ge=1, le=31)
+    hours: int = Field(..., ge=0, le=23)
+    minutes: int = Field(..., ge=0, le=59)
+    seconds: int = Field(0, ge=0, le=59)
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    timezone: float = Field(..., ge=-12, le=14)
+
+
+@router.post("/transits/birth-chart")
+async def get_transits_from_birth(request: TransitFromBirthRequest):
+    """
+    Calculate transit effects from birth details.
+    
+    First calculates natal chart, then analyzes current transits.
+    """
+    try:
+        from .planetary import calculate_planet_positions
+        from .transits import calculate_transit_effects
+        
+        # Calculate natal chart
+        natal = calculate_planet_positions(
+            year=request.year,
+            month=request.month,
+            day=request.date,
+            hours=request.hours,
+            minutes=request.minutes,
+            seconds=request.seconds,
+            latitude=request.latitude,
+            longitude=request.longitude,
+            timezone_hours=request.timezone,
+        )
+        
+        # Extract natal planet longitudes
+        natal_planets = {}
+        for planet in natal.get("planets", []):
+            name = planet.get("name", "")
+            lon = planet.get("full_degree", planet.get("longitude", 0))
+            if name and lon:
+                natal_planets[name] = lon
+        
+        # Calculate transits
+        result = calculate_transit_effects(natal_planets=natal_planets)
+        
+        # Add natal data to response
+        result["natal_data"] = {
+            "birth_date": f"{request.year}-{request.month:02d}-{request.date:02d}",
+            "planets": natal_planets,
+        }
+        
+        logger.info(f"Generated transit predictions from birth chart")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error calculating transits from birth: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to calculate transits: {str(e)}"
+        )
+
+
 # Additional endpoints to implement:
 # - POST /planetary-strength - Shadbala calculations
-# - POST /transit-predictions - Current transit effects
+# - POST /yogas - Planetary combination detection
