@@ -748,25 +748,33 @@ async def get_transits_from_birth(request: TransitFromBirthRequest):
     try:
         from .planetary import calculate_planet_positions
         from .transits import calculate_transit_effects
+        from datetime import datetime, timedelta, timezone as tz
         
-        # Calculate natal chart
-        natal = calculate_planet_positions(
+        # Construct datetime from request
+        utc_offset = timedelta(hours=request.timezone)
+        birth_tz = tz(utc_offset)
+        birth_dt = datetime(
             year=request.year,
             month=request.month,
             day=request.date,
-            hours=request.hours,
-            minutes=request.minutes,
-            seconds=request.seconds,
+            hour=request.hours,
+            minute=request.minutes,
+            second=request.seconds,
+            tzinfo=birth_tz
+        )
+        
+        # Calculate natal chart
+        natal_planets_list = calculate_planet_positions(
+            dt=birth_dt,
             latitude=request.latitude,
             longitude=request.longitude,
-            timezone_hours=request.timezone,
         )
         
         # Extract natal planet longitudes
         natal_planets = {}
-        for planet in natal.get("planets", []):
+        for planet in natal_planets_list:
             name = planet.get("name", "")
-            lon = planet.get("full_degree", planet.get("longitude", 0))
+            lon = planet.get("fullDegree", planet.get("full_degree", 0))
             if name and lon:
                 natal_planets[name] = lon
         
