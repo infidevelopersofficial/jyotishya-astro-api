@@ -546,6 +546,119 @@ async def calculate_dasha_from_moon(request: DashaFromMoonRequest):
         )
 
 
+# ==============================================================================
+# KUNDLI MATCHING ENDPOINTS
+# ==============================================================================
+
+class MatchingFromMoonRequest(BaseModel):
+    """Request for matching from Moon longitudes"""
+    bride_moon_longitude: float = Field(..., ge=0, lt=360, description="Bride's sidereal Moon longitude")
+    groom_moon_longitude: float = Field(..., ge=0, lt=360, description="Groom's sidereal Moon longitude")
+    bride_name: str = Field("Bride", max_length=100)
+    groom_name: str = Field("Groom", max_length=100)
+
+
+@router.post("/match-making")
+async def calculate_match_from_moon(request: MatchingFromMoonRequest):
+    """
+    Calculate Ashtakoot compatibility from Moon longitudes.
+    
+    Returns 8 compatibility factors (koots) with total score out of 36.
+    """
+    try:
+        from .matching import calculate_compatibility
+        
+        result = calculate_compatibility(
+            bride_moon_longitude=request.bride_moon_longitude,
+            groom_moon_longitude=request.groom_moon_longitude,
+            bride_name=request.bride_name,
+            groom_name=request.groom_name,
+        )
+        
+        logger.info(f"Generated match for {request.bride_name} & {request.groom_name}: {result['total_score']}/36")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error calculating match: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to calculate match: {str(e)}"
+        )
+
+
+class MatchingFromBirthRequest(BaseModel):
+    """Request for matching from birth details"""
+    bride: DashaRequest = Field(..., description="Bride's birth details")
+    groom: DashaRequest = Field(..., description="Groom's birth details")
+    bride_name: str = Field("Bride", max_length=100)
+    groom_name: str = Field("Groom", max_length=100)
+
+
+@router.post("/match-making/birth-details")
+async def calculate_match_from_birth(request: MatchingFromBirthRequest):
+    """
+    Calculate Ashtakoot compatibility from full birth details.
+    
+    Calculates Moon positions for both, then runs compatibility check.
+    """
+    try:
+        from .dasha import get_dasha_from_birth_chart
+        from .matching import calculate_compatibility
+        
+        # Get Moon longitudes for both
+        bride_dasha = get_dasha_from_birth_chart(
+            year=request.bride.year,
+            month=request.bride.month,
+            day=request.bride.date,
+            hours=request.bride.hours,
+            minutes=request.bride.minutes,
+            seconds=request.bride.seconds,
+            latitude=request.bride.latitude,
+            longitude=request.bride.longitude,
+            timezone=request.bride.timezone,
+            years_to_calculate=10,  # Just need Moon position
+        )
+        
+        groom_dasha = get_dasha_from_birth_chart(
+            year=request.groom.year,
+            month=request.groom.month,
+            day=request.groom.date,
+            hours=request.groom.hours,
+            minutes=request.groom.minutes,
+            seconds=request.groom.seconds,
+            latitude=request.groom.latitude,
+            longitude=request.groom.longitude,
+            timezone=request.groom.timezone,
+            years_to_calculate=10,
+        )
+        
+        bride_moon = bride_dasha["moon_longitude"]
+        groom_moon = groom_dasha["moon_longitude"]
+        
+        result = calculate_compatibility(
+            bride_moon_longitude=bride_moon,
+            groom_moon_longitude=groom_moon,
+            bride_name=request.bride_name,
+            groom_name=request.groom_name,
+        )
+        
+        # Add birth nakshatras from dasha calculation
+        result["bride"]["birth_nakshatra_from_dasha"] = bride_dasha["birth_nakshatra"]
+        result["groom"]["birth_nakshatra_from_dasha"] = groom_dasha["birth_nakshatra"]
+        
+        logger.info(f"Generated match from birth details: {result['total_score']}/36")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error calculating match from birth: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to calculate match: {str(e)}"
+        )
+
+
 # Additional endpoints to implement:
-# - POST /match-making - Ashtakoot compatibility
 # - POST /planetary-strength - Shadbala calculations
+# - POST /transit-predictions - Current transit effects
