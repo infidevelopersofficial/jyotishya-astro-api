@@ -799,6 +799,232 @@ async def get_transits_from_birth(request: TransitFromBirthRequest):
         )
 
 
+# ==============================================================================
+# YOGAS (PLANETARY COMBINATIONS) ENDPOINTS
+# ==============================================================================
+
+class YogasRequest(BaseModel):
+    """Request for yoga detection"""
+    planets: List[Dict[str, Any]] = Field(
+        ..., description="List of planet data with name and fullDegree"
+    )
+    ascendant_longitude: float = Field(
+        ..., ge=0, le=360, description="Ascendant longitude"
+    )
+
+
+@router.post("/yogas")
+async def detect_yogas_endpoint(request: YogasRequest):
+    """Detect yogas (planetary combinations) in a birth chart."""
+    try:
+        from .yogas import detect_yogas
+        
+        result = detect_yogas(
+            planets_list=request.planets,
+            ascendant_lon=request.ascendant_longitude
+        )
+        
+        logger.info(f"Detected {result['summary']['total_yogas']} yogas")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error detecting yogas: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to detect yogas: {str(e)}"
+        )
+
+
+class YogasFromBirthRequest(BaseModel):
+    """Request for yoga detection from birth details"""
+    year: int = Field(..., ge=1800, le=2200)
+    month: int = Field(..., ge=1, le=12)
+    date: int = Field(..., ge=1, le=31)
+    hours: int = Field(..., ge=0, le=23)
+    minutes: int = Field(..., ge=0, le=59)
+    seconds: int = Field(0, ge=0, le=59)
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    timezone: float = Field(..., ge=-12, le=14)
+
+
+@router.post("/yogas/birth-chart")
+async def detect_yogas_from_birth(request: YogasFromBirthRequest):
+    """Detect yogas from birth details."""
+    try:
+        from .planetary import calculate_planet_positions, calculate_ascendant
+        from .yogas import detect_yogas
+        from datetime import datetime, timedelta, timezone as tz
+        
+        # Construct datetime from request
+        utc_offset = timedelta(hours=request.timezone)
+        birth_tz = tz(utc_offset)
+        birth_dt = datetime(
+            year=request.year,
+            month=request.month,
+            day=request.date,
+            hour=request.hours,
+            minute=request.minutes,
+            second=request.seconds,
+            tzinfo=birth_tz
+        )
+        
+        # Calculate planets and ascendant
+        planets_list = calculate_planet_positions(
+            dt=birth_dt,
+            latitude=request.latitude,
+            longitude=request.longitude,
+        )
+        
+        asc_data = calculate_ascendant(
+            dt=birth_dt,
+            latitude=request.latitude,
+            longitude=request.longitude,
+        )
+        
+        asc_lon = asc_data.get("longitude", 0)
+        
+        result = detect_yogas(
+            planets_list=planets_list,
+            ascendant_lon=asc_lon
+        )
+        
+        result["birth_data"] = {
+            "birth_date": f"{request.year}-{request.month:02d}-{request.date:02d}",
+            "ascendant_longitude": asc_lon,
+        }
+        
+        logger.info(f"Detected {result['summary']['total_yogas']} yogas from birth chart")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error detecting yogas from birth: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to detect yogas: {str(e)}"
+        )
+
+
+# ==============================================================================
+# DIVISIONAL CHARTS ENDPOINTS
+# ==============================================================================
+
+class DivisionalRequest(BaseModel):
+    """Request for divisional charts"""
+    planets: List[Dict[str, Any]] = Field(
+        ..., description="List of planet data with name and fullDegree"
+    )
+    ascendant_longitude: float = Field(
+        ..., ge=0, le=360, description="Ascendant longitude"
+    )
+
+
+@router.post("/divisional-charts")
+async def get_divisional_charts(request: DivisionalRequest):
+    """Calculate all divisional charts (D1 through D12)."""
+    try:
+        from .divisional import calculate_divisional_charts
+        
+        result = calculate_divisional_charts(
+            planets_list=request.planets,
+            ascendant_lon=request.ascendant_longitude
+        )
+        
+        logger.info(f"Calculated {len(result['available_charts'])} divisional charts")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error calculating divisional charts: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to calculate divisional charts: {str(e)}"
+        )
+
+
+class DivisionalFromBirthRequest(BaseModel):
+    """Request for divisional charts from birth details"""
+    year: int = Field(..., ge=1800, le=2200)
+    month: int = Field(..., ge=1, le=12)
+    date: int = Field(..., ge=1, le=31)
+    hours: int = Field(..., ge=0, le=23)
+    minutes: int = Field(..., ge=0, le=59)
+    seconds: int = Field(0, ge=0, le=59)
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    timezone: float = Field(..., ge=-12, le=14)
+    chart: Optional[str] = Field(None, description="Specific chart: D1, D9, D10, etc.")
+
+
+@router.post("/divisional-charts/birth-chart")
+async def get_divisional_from_birth(request: DivisionalFromBirthRequest):
+    """Calculate divisional charts from birth details."""
+    try:
+        from .planetary import calculate_planet_positions, calculate_ascendant
+        from .divisional import calculate_divisional_charts, get_navamsa_chart, get_dasamsa_chart
+        from datetime import datetime, timedelta, timezone as tz
+        
+        # Construct datetime from request
+        utc_offset = timedelta(hours=request.timezone)
+        birth_tz = tz(utc_offset)
+        birth_dt = datetime(
+            year=request.year,
+            month=request.month,
+            day=request.date,
+            hour=request.hours,
+            minute=request.minutes,
+            second=request.seconds,
+            tzinfo=birth_tz
+        )
+        
+        # Calculate planets and ascendant
+        planets_list = calculate_planet_positions(
+            dt=birth_dt,
+            latitude=request.latitude,
+            longitude=request.longitude,
+        )
+        
+        asc_data = calculate_ascendant(
+            dt=birth_dt,
+            latitude=request.latitude,
+            longitude=request.longitude,
+        )
+        
+        asc_lon = asc_data.get("longitude", 0)
+        
+        # Return specific chart if requested
+        if request.chart:
+            if request.chart.upper() == "D9":
+                result = get_navamsa_chart(planets_list, asc_lon)
+            elif request.chart.upper() == "D10":
+                result = get_dasamsa_chart(planets_list, asc_lon)
+            else:
+                all_charts = calculate_divisional_charts(planets_list, asc_lon)
+                chart_key = request.chart.upper()
+                if chart_key in all_charts["charts"]:
+                    result = {
+                        "chart": chart_key,
+                        **all_charts["charts"][chart_key]
+                    }
+                else:
+                    raise ValueError(f"Chart {chart_key} not available")
+        else:
+            result = calculate_divisional_charts(planets_list, asc_lon)
+        
+        result["birth_data"] = {
+            "birth_date": f"{request.year}-{request.month:02d}-{request.date:02d}",
+            "ascendant_longitude": asc_lon,
+        }
+        
+        logger.info("Calculated divisional charts from birth")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error calculating divisional from birth: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to calculate divisional charts: {str(e)}"
+        )
+
+
 # Additional endpoints to implement:
 # - POST /planetary-strength - Shadbala calculations
-# - POST /yogas - Planetary combination detection
